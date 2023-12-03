@@ -100,6 +100,8 @@ public class awsTest {
 
 			String instance_id = "";
 			String instance_name = "";
+			String file_name = "";
+			String dest_instance_name = "";
 
 			switch(number) {
 			case 1: 
@@ -179,6 +181,20 @@ public class awsTest {
 				if(!instance_name.isBlank()) 
 					stopInstance_name(instance_name);
 				break;
+			case 14:
+				System.out.print("Enter file name: ");
+				if(id_string.hasNext())
+					file_name = id_string.nextLine();
+				
+				if(!file_name.isBlank()) {
+					System.out.print("Enter destination instance name: ");
+					if(id_string.hasNext())
+						dest_instance_name = id_string.nextLine();
+					
+					if(!dest_instance_name.isBlank()) 
+					sendFile(file_name, dest_instance_name);
+				}
+				break;				
 			case 99: 
 				System.out.println("bye!");
 				menu.close();
@@ -191,6 +207,38 @@ public class awsTest {
 		
 	}
 
+	public static void findDNS(String instance_name){
+
+	}
+
+	public static void sendFile(String file_name, String dest_instance_name){
+		String exe_name = file_name.substring(0, file_name.lastIndexOf("."));
+ 		// 실행할 명령어
+        String command = "ls -l";
+
+        try {
+            // ProcessBuilder를 사용하여 명령어 실행
+            Process process = new ProcessBuilder(command.split("\\s+"))
+                    .redirectErrorStream(true)
+                    .start();
+
+            // 명령어 실행 결과를 읽기 위한 BufferedReader
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line;
+
+            // 명령어 실행 결과를 출력
+            while ((line = reader.readLine()) != null) {
+                System.out.println(line);
+            }
+
+            // 프로세스가 종료될 때까지 대기
+            int exitCode = process.waitFor();
+            System.out.println("Exit Code: " + exitCode);
+
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+	}
 
     public static void sshConnect(){
         AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
@@ -391,148 +439,9 @@ public class awsTest {
 
 		ec2.startInstances(request);
 
-		System.out.printf("Successfully started instance %s", instance_id);
+		System.out.printf("Successfully started instance %s\n", instance_id);
 	}
 
-	public static void startInstance_name(String instance_name)
-	{
-		boolean done = false;
-		String instance_id = null;
-		
-		DescribeInstancesRequest request = new DescribeInstancesRequest();
-		
-		while(!done) {
-			DescribeInstancesResult response = ec2.describeInstances(request);
-
-			for(Reservation reservation : response.getReservations()) {
-				for(Instance instance : reservation.getInstances()) {
-					String search_name = null;
-					if (instance.getTags() != null) {
-			            Tag tagName = instance.getTags().stream()
-	                        .filter(o -> o.getKey().equals("Name"))
-	                        .findFirst()
-	                        .orElse(new Tag("Name", "name not found"));
-
-		                search_name = tagName.getValue();
-			        }
-
-			        if (instance_name.equals(search_name)){
-			        	instance_id = instance.getInstanceId();
-			        	break;
-			        }
-				}
-			}
-
-			request.setNextToken(response.getNextToken());
-
-			if(response.getNextToken() == null) {
-				done = true;
-			}
-		}
-
-		if (instance_id != null){
-			final String instance_id_final = instance_id;
-			System.out.printf("Starting .... %s\n", instance_name);
-			final AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
-
-			DryRunSupportedRequest<StartInstancesRequest> dry_request =
-				() -> {
-				StartInstancesRequest request_sub = new StartInstancesRequest()
-					.withInstanceIds(instance_id_final);
-
-				return request_sub.getDryRunRequest();
-			};
-
-			StartInstancesRequest request_sub = new StartInstancesRequest()
-				.withInstanceIds(instance_id_final);
-
-			ec2.startInstances(request_sub);
-
-			System.out.printf("Successfully started instance %s", instance_name);
-		}
-	}
-
-	public static void stopInstance_name(String instance_name)
-	{
-		boolean done = false;
-		String instance_id = null;
-		
-		DescribeInstancesRequest request = new DescribeInstancesRequest();
-		
-		while(!done) {
-			DescribeInstancesResult response = ec2.describeInstances(request);
-
-			for(Reservation reservation : response.getReservations()) {
-				for(Instance instance : reservation.getInstances()) {
-					String search_name = null;
-					if (instance.getTags() != null) {
-			            Tag tagName = instance.getTags().stream()
-	                        .filter(o -> o.getKey().equals("Name"))
-	                        .findFirst()
-	                        .orElse(new Tag("Name", "name not found"));
-
-		                search_name = tagName.getValue();
-			        }
-
-			        if (instance_name.equals(search_name)){
-			        	instance_id = instance.getInstanceId();
-			        	break;
-			        }
-				}
-			}
-
-			request.setNextToken(response.getNextToken());
-
-			if(response.getNextToken() == null) {
-				done = true;
-			}
-		}
-
-		if (instance_id != null){
-			final String instance_id_final = instance_id;
-			System.out.printf("Stoping .... %s\n", instance_name);
-			final AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
-
-			DryRunSupportedRequest<StopInstancesRequest> dry_request =
-				() -> {
-				StopInstancesRequest request_sub = new StopInstancesRequest()
-					.withInstanceIds(instance_id_final);
-
-				return request_sub.getDryRunRequest();
-			};
-
-			try {
-				StopInstancesRequest request_sub = new StopInstancesRequest()
-					.withInstanceIds(instance_id_final);
-		
-				ec2.stopInstances(request_sub);
-				System.out.printf("Successfully stop instance %s\n", instance_name);
-
-			} catch(Exception e)
-			{
-				System.out.println("Exception: "+e.toString());
-			}
-		}
-	}
-	
-	
-	public static void availableRegions() {
-		
-		System.out.println("Available regions ....");
-		
-		final AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
-
-		DescribeRegionsResult regions_response = ec2.describeRegions();
-
-		for(Region region : regions_response.getRegions()) {
-			System.out.printf(
-				"[region] %15s, " +
-				"[endpoint] %s\n",
-				region.getRegionName(),
-				region.getEndpoint());
-		}
-	}
-	
 	public static void stopInstance(String instance_id) {
 		final AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
 
@@ -558,6 +467,78 @@ public class awsTest {
 
 	}
 
+	public static String nameToID(String instance_name){
+		boolean done = false;
+		String instance_id = null;
+		DescribeInstancesRequest request = new DescribeInstancesRequest();
+		
+		while(!done) {
+			DescribeInstancesResult response = ec2.describeInstances(request);
+
+			for(Reservation reservation : response.getReservations()) {
+				for(Instance instance : reservation.getInstances()) {
+					String search_name = null;
+					if (instance.getTags() != null) {
+			            Tag tagName = instance.getTags().stream()
+	                        .filter(o -> o.getKey().equals("Name"))
+	                        .findFirst()
+	                        .orElse(new Tag("Name", "name not found"));
+
+		                search_name = tagName.getValue();
+			        }
+
+			        if (instance_name.equals(search_name)){
+			        	instance_id = instance.getInstanceId();
+			        	break;
+			        }
+				}
+			}
+
+			request.setNextToken(response.getNextToken());
+
+			if(response.getNextToken() == null) {
+				done = true;
+			}
+		}
+		return instance_id;
+	}
+
+	public static void startInstance_name(String instance_name)
+	{
+		String instance_id = nameToID(instance_name);
+
+		if (instance_id != null){
+			startInstance(instance_id);
+		}
+	}
+
+	public static void stopInstance_name(String instance_name)
+	{
+		String instance_id = nameToID(instance_name);
+
+		if (instance_id != null){
+			stopInstance(instance_id);
+		}
+	}
+	
+	
+	public static void availableRegions() {
+		
+		System.out.println("Available regions ....");
+		
+		final AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
+
+		DescribeRegionsResult regions_response = ec2.describeRegions();
+
+		for(Region region : regions_response.getRegions()) {
+			System.out.printf(
+				"[region] %15s, " +
+				"[endpoint] %s\n",
+				region.getRegionName(),
+				region.getEndpoint());
+		}
+	}
+	
 	public static void startAll(){
 		AmazonEC2 ec2_all = AmazonEC2ClientBuilder.defaultClient();
 
@@ -578,23 +559,7 @@ public class awsTest {
 
             for (Instance instance : reservation.getInstances()) {
             	String instance_id = instance.getInstanceId();
-
-				final AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
-
-				DryRunSupportedRequest<StartInstancesRequest> dry_request =
-					() -> {
-					StartInstancesRequest isntance_request = new StartInstancesRequest()
-						.withInstanceIds(instance_id);
-
-					return isntance_request.getDryRunRequest();
-				};
-
-				StartInstancesRequest isntance_request = new StartInstancesRequest()
-					.withInstanceIds(instance_id);
-
-				ec2.startInstances(isntance_request);
-
-				System.out.printf("Successfully started instance %s\n", instance_id);
+				startInstance(instance_id);
             }
         }
 	}
@@ -619,28 +584,7 @@ public class awsTest {
 
             for (Instance instance : reservation.getInstances()) {
             	String instance_id = instance.getInstanceId();
-
-            	final AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
-
-				DryRunSupportedRequest<StopInstancesRequest> dry_request =
-					() -> {
-					StopInstancesRequest isntance_request = new StopInstancesRequest()
-						.withInstanceIds(instance_id);
-
-					return isntance_request.getDryRunRequest();
-				};
-
-				try {
-					StopInstancesRequest isntance_request = new StopInstancesRequest()
-						.withInstanceIds(instance_id);
-			
-					ec2.stopInstances(isntance_request);
-					System.out.printf("Successfully stop instance %s\n", instance_id);
-
-				} catch(Exception e)
-				{
-					System.out.println("Exception: "+e.toString());
-				}
+				stopInstance(instance_id);
             }
         }
 	}
