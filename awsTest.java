@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import com.jcraft.jsch.*;
 import java.io.ByteArrayOutputStream;
+
 public class awsTest {
 
 	static AmazonEC2      ec2;
@@ -166,66 +167,113 @@ public class awsTest {
 
 
     public static void sshConnect(){
+        AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
 
-  	//여기에 .pem 파일의 절대경로를 지정한다.
-    String keyname = "";
-    //여기에 EC2 instance 도메인 주소를 적는다.
-    String publicDNS = "";
-    Channel channel = null;
-    Session session = null;
+        //Create the Filter to use to find running instances
+        Filter filter = new Filter("instance-state-name");
+        filter.withValues("running");
 
+        //Create a DescribeInstancesRequest
+        DescribeInstancesRequest request = new DescribeInstancesRequest();
+        request.withFilters(filter);
 
-        try{
-            JSch jsch=new JSch();
+        // Find the running instances
+        DescribeInstancesResult response = ec2.describeInstances(request);
 
-            String user = "ec2-user";
-            String host = publicDNS;
-            int port = 22;
-            String privateKey = keyname;
+        String publicDNS = null;
 
-            jsch.addIdentity(privateKey);
-            System.out.println("identity added ");
+        for (Reservation reservation : response.getReservations()){
 
-            session = jsch.getSession(user, host, port);
-            System.out.println("session created.");
+            for (Instance instance : reservation.getInstances()) {
 
-            session.setConfig("StrictHostKeyChecking","no");
-            session.setConfig("GSSAPIAuthentication","no");
-            session.setServerAliveInterval(120 * 1000);
-            session.setServerAliveCountMax(1000);
-            session.setConfig("TCPKeepAlive","yes");
-
-            session.connect();
-
-            String responseString = "";
-            String command = "condor_status"; // 실행할 명령어
-			try {
-				ByteArrayOutputStream responseStream = new ByteArrayOutputStream();
-				
-				ChannelExec channelExec = (ChannelExec) session.openChannel("exec");
-				channelExec.setCommand(command);
-				channelExec.setOutputStream(responseStream);
-				channelExec.connect();
-		        while (channelExec.isConnected()) {
-		            Thread.sleep(100);
-		        }
-		        
-		        responseString = new String(responseStream.toByteArray());
-			} catch (JSchException e) {
-				e.printStackTrace();
-			}
-			System.out.println(responseString);
+                //Print out the results
+                System.out.println("\n[Running Instance Information]");
+                System.out.printf(
+                		"----------------------------------------------------\n" +
+                        "id %s, \n" +
+                        "AMI %s, \n" +
+                        "type %s, \n" +
+                        "state %s \n" +
+                        "monitoring state %s \n" +
+                        "DNS %s \n" + 
+                        "----------------------------------------------------\n",
+                        instance.getInstanceId(),
+                        instance.getImageId(),
+                        instance.getInstanceType(),
+                        instance.getState().getName(),
+                        instance.getMonitoring().getState(),
+                		instance.getPublicDnsName());
+                publicDNS = instance.getPublicDnsName();
+            }
         }
-        catch(Exception e){
-            e.printStackTrace();
-        } finally {
-        if (channel != null) {
-            channel.disconnect();
-        }
-        
-        if (session != null) {
-            session.disconnect();
-        }
+
+	  	//여기에 .pem 파일의 절대경로를 지정한다.
+	    String keyname = "bckim_test.pem";
+	    //여기에 EC2 instance 도메인 주소를 적는다.
+	    // String publicDNS = "ec2-15-164-100-219.ap-northeast-2.compute.amazonaws.com";
+	    Channel channel = null;
+	    Session session = null;
+
+	    if (publicDNS == null){
+	    	System.out.println("Name                                             OpSys      Arch   State     Activity LoadAv Mem   ActvtyTime \n\n" +
+               					"                  Machines Owner Claimed Unclaimed Matched Preempting  Drain\n" + 
+								"  X86_64/LINUX        0     0       0         0       0          0       0\n" +
+         						"  Total               0     0       0         0       0          0       0\n\n");
+	    }
+	    else{
+		    System.out.println("connect to " + publicDNS + "\n\n");
+
+
+	        try{
+	            JSch jsch=new JSch();
+
+	            String user = "ec2-user";
+	            String host = publicDNS;
+	            int port = 22;
+	            String privateKey = keyname;
+
+	            jsch.addIdentity(privateKey);
+
+	            session = jsch.getSession(user, host, port);
+
+	            session.setConfig("StrictHostKeyChecking","no");
+	            session.setConfig("GSSAPIAuthentication","no");
+	            session.setServerAliveInterval(120 * 1000);
+	            session.setServerAliveCountMax(1000);
+	            session.setConfig("TCPKeepAlive","yes");
+
+	            session.connect();
+
+	            String responseString = "";
+	            String command = "condor_status"; // 실행할 명령어
+				try {
+					ByteArrayOutputStream responseStream = new ByteArrayOutputStream();
+					
+					ChannelExec channelExec = (ChannelExec) session.openChannel("exec");
+					channelExec.setCommand(command);
+					channelExec.setOutputStream(responseStream);
+					channelExec.connect();
+			        while (channelExec.isConnected()) {
+			            Thread.sleep(100);
+			        }
+			        
+			        responseString = new String(responseStream.toByteArray());
+				} catch (JSchException e) {
+					e.printStackTrace();
+				}
+				System.out.println(responseString);
+	        }
+	        catch(Exception e){
+	            e.printStackTrace();
+	        } finally {
+	        if (channel != null) {
+	            channel.disconnect();
+	        }
+	        
+	        if (session != null) {
+	            session.disconnect();
+	        }
+	    }
       }
     }
 
