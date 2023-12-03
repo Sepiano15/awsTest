@@ -86,7 +86,8 @@ public class awsTest {
 			System.out.println("  9. show condor_status           10. start all instance    ");
 			System.out.println("  11. stop all instance           12. start instance by name");
 			System.out.println("  13. stop instance by name       14. send file to instance ");
-			System.out.println("  15. run C program               99. quit                  ");
+			System.out.println("  15. run C program               16. get ssh link          ");
+			System.out.println("  17. show running instance       99. quit                  ");
 			System.out.println("------------------------------------------------------------");
 			
 			System.out.print("Enter an integer: ");
@@ -210,7 +211,18 @@ public class awsTest {
 					sendFile(file_name, dest_instance_name);
 				}
 				runProgram(file_name, dest_instance_name);
-				break;	
+				break;
+			case 16:
+				System.out.print("Enter instance name: ");
+				if(id_string.hasNext())
+					instance_name = id_string.nextLine();
+				
+				if(!instance_name.isBlank()) 
+					getsshlink(instance_name);
+				break;
+			case 17:
+				showRunningInstance();
+				break;
 			case 99: 
 				System.out.println("bye!");
 				menu.close();
@@ -221,6 +233,60 @@ public class awsTest {
 
 		}
 		
+	}
+
+	public static void showRunningInstance(){
+		 AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
+
+        //Create the Filter to use to find running instances
+        Filter filter = new Filter("instance-state-name");
+        filter.withValues("running");
+
+        //Create a DescribeInstancesRequest
+        DescribeInstancesRequest request = new DescribeInstancesRequest();
+        request.withFilters(filter);
+
+        // Find the running instances
+        DescribeInstancesResult response = ec2.describeInstances(request);
+
+        for (Reservation reservation : response.getReservations()){
+
+            for (Instance instance : reservation.getInstances()) {
+
+                //Print out the results
+                System.out.println("\n[Running Instance Information]");
+                System.out.printf(
+                		"----------------------------------------------------\n" +
+                        "id %s, \n" +
+                        "AMI %s, \n" +
+                        "type %s, \n" +
+                        "state %s \n" +
+                        "monitoring state %s \n" +
+                        "DNS %s \n" + 
+                        "----------------------------------------------------\n",
+                        instance.getInstanceId(),
+                        instance.getImageId(),
+                        instance.getInstanceType(),
+                        instance.getState().getName(),
+                        instance.getMonitoring().getState(),
+                		instance.getPublicDnsName());
+            }
+        }
+	}
+
+	public static void getsshlink(String instance_name){
+		String publicDNS = nameToDNS(instance_name);
+        String user = "ec2-user";
+        awsTest instance = new awsTest();
+		String privateKey = instance.privateKey;
+
+ 		// 실행할 명령어
+        String command = """
+            ssh -i %s %s@%s
+            """.formatted(privateKey, user, publicDNS);
+
+        System.out.println(command);
+
 	}
 
 	public static void runProgram(String file_name, String instance_name){
