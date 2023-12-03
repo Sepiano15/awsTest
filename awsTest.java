@@ -34,6 +34,7 @@ import com.amazonaws.services.ec2.model.DescribeImagesRequest;
 import com.amazonaws.services.ec2.model.DescribeImagesResult;
 import com.amazonaws.services.ec2.model.Image;
 import com.amazonaws.services.ec2.model.Filter;
+import com.amazonaws.services.ec2.model.Tag;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -78,10 +79,12 @@ public class awsTest {
 			System.out.println("           Amazon AWS Control Panel using SDK               ");
 			System.out.println("------------------------------------------------------------");
 			System.out.println("  1. list instance                2. available zones        ");
-			System.out.println("  3. start instance               4. available regions      ");
-			System.out.println("  5. stop instance                6. create instance        ");
+			System.out.println("  3. start instance by id         4. available regions      ");
+			System.out.println("  5. stop instance by id          6. create instance        ");
 			System.out.println("  7. reboot instance              8. list images            ");
-			System.out.println("  9. show condor_status           10. stop all instance     ");
+			System.out.println("  9. show condor_status           10. start all instance    ");
+			System.out.println("  11. stop all instance           12. start instance by name");
+			System.out.println("  13. stop instance by name       ");
 			System.out.println("  99. quit                   ");
 			System.out.println("------------------------------------------------------------");
 			
@@ -96,6 +99,7 @@ public class awsTest {
 			
 
 			String instance_id = "";
+			String instance_name = "";
 
 			switch(number) {
 			case 1: 
@@ -154,7 +158,26 @@ public class awsTest {
 				sshConnect();
 				break;
 			case 10:
+				startAll();
+				break;
+			case 11:
 				stopAll();
+				break;
+			case 12: 
+				System.out.print("Enter instance name: ");
+				if(id_string.hasNext())
+					instance_name = id_string.nextLine();
+				
+				if(!instance_name.isBlank()) 
+					startInstance_name(instance_name);
+				break;
+			case 13: 
+				System.out.print("Enter instance name: ");
+				if(id_string.hasNext())
+					instance_name = id_string.nextLine();
+				
+				if(!instance_name.isBlank()) 
+					stopInstance_name(instance_name);
 				break;
 			case 99: 
 				System.out.println("bye!");
@@ -211,9 +234,7 @@ public class awsTest {
         }
 
 	  	//여기에 .pem 파일의 절대경로를 지정한다.
-	    String keyname = "bckim_test.pem";
-	    //여기에 EC2 instance 도메인 주소를 적는다.
-	    // String publicDNS = "ec2-15-164-100-219.ap-northeast-2.compute.amazonaws.com";
+	    String keyname = "";
 	    Channel channel = null;
 	    Session session = null;
 
@@ -292,12 +313,24 @@ public class awsTest {
 
 			for(Reservation reservation : response.getReservations()) {
 				for(Instance instance : reservation.getInstances()) {
+					String instance_name = null;
+					if (instance.getTags() != null) {
+			            Tag tagName = instance.getTags().stream()
+	                        .filter(o -> o.getKey().equals("Name"))
+	                        .findFirst()
+	                        .orElse(new Tag("Name", "name not found"));
+
+		                instance_name = tagName.getValue();
+			        }
+
 					System.out.printf(
+						"[name] %s, " +
 						"[id] %s, " +
 						"[AMI] %s, " +
 						"[type] %s, " +
 						"[state] %10s, " +
 						"[monitoring state] %s",
+						instance_name,
 						instance.getInstanceId(),
 						instance.getImageId(),
 						instance.getInstanceType(),
@@ -360,6 +393,127 @@ public class awsTest {
 
 		System.out.printf("Successfully started instance %s", instance_id);
 	}
+
+	public static void startInstance_name(String instance_name)
+	{
+		boolean done = false;
+		String instance_id = null;
+		
+		DescribeInstancesRequest request = new DescribeInstancesRequest();
+		
+		while(!done) {
+			DescribeInstancesResult response = ec2.describeInstances(request);
+
+			for(Reservation reservation : response.getReservations()) {
+				for(Instance instance : reservation.getInstances()) {
+					String search_name = null;
+					if (instance.getTags() != null) {
+			            Tag tagName = instance.getTags().stream()
+	                        .filter(o -> o.getKey().equals("Name"))
+	                        .findFirst()
+	                        .orElse(new Tag("Name", "name not found"));
+
+		                search_name = tagName.getValue();
+			        }
+
+			        if (instance_name.equals(search_name)){
+			        	instance_id = instance.getInstanceId();
+			        	break;
+			        }
+				}
+			}
+
+			request.setNextToken(response.getNextToken());
+
+			if(response.getNextToken() == null) {
+				done = true;
+			}
+		}
+
+		if (instance_id != null){
+			final String instance_id_final = instance_id;
+			System.out.printf("Starting .... %s\n", instance_name);
+			final AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
+
+			DryRunSupportedRequest<StartInstancesRequest> dry_request =
+				() -> {
+				StartInstancesRequest request_sub = new StartInstancesRequest()
+					.withInstanceIds(instance_id_final);
+
+				return request_sub.getDryRunRequest();
+			};
+
+			StartInstancesRequest request_sub = new StartInstancesRequest()
+				.withInstanceIds(instance_id_final);
+
+			ec2.startInstances(request_sub);
+
+			System.out.printf("Successfully started instance %s", instance_name);
+		}
+	}
+
+	public static void stopInstance_name(String instance_name)
+	{
+		boolean done = false;
+		String instance_id = null;
+		
+		DescribeInstancesRequest request = new DescribeInstancesRequest();
+		
+		while(!done) {
+			DescribeInstancesResult response = ec2.describeInstances(request);
+
+			for(Reservation reservation : response.getReservations()) {
+				for(Instance instance : reservation.getInstances()) {
+					String search_name = null;
+					if (instance.getTags() != null) {
+			            Tag tagName = instance.getTags().stream()
+	                        .filter(o -> o.getKey().equals("Name"))
+	                        .findFirst()
+	                        .orElse(new Tag("Name", "name not found"));
+
+		                search_name = tagName.getValue();
+			        }
+
+			        if (instance_name.equals(search_name)){
+			        	instance_id = instance.getInstanceId();
+			        	break;
+			        }
+				}
+			}
+
+			request.setNextToken(response.getNextToken());
+
+			if(response.getNextToken() == null) {
+				done = true;
+			}
+		}
+
+		if (instance_id != null){
+			final String instance_id_final = instance_id;
+			System.out.printf("Stoping .... %s\n", instance_name);
+			final AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
+
+			DryRunSupportedRequest<StopInstancesRequest> dry_request =
+				() -> {
+				StopInstancesRequest request_sub = new StopInstancesRequest()
+					.withInstanceIds(instance_id_final);
+
+				return request_sub.getDryRunRequest();
+			};
+
+			try {
+				StopInstancesRequest request_sub = new StopInstancesRequest()
+					.withInstanceIds(instance_id_final);
+		
+				ec2.stopInstances(request_sub);
+				System.out.printf("Successfully stop instance %s\n", instance_name);
+
+			} catch(Exception e)
+			{
+				System.out.println("Exception: "+e.toString());
+			}
+		}
+	}
 	
 	
 	public static void availableRegions() {
@@ -402,6 +556,47 @@ public class awsTest {
 			System.out.println("Exception: "+e.toString());
 		}
 
+	}
+
+	public static void startAll(){
+		AmazonEC2 ec2_all = AmazonEC2ClientBuilder.defaultClient();
+
+        //Create the Filter to use to find running instances
+        Filter filter = new Filter("instance-state-name");
+        filter.withValues("stopped");
+
+        //Create a DescribeInstancesRequest
+        DescribeInstancesRequest request = new DescribeInstancesRequest();
+        request.withFilters(filter);
+
+        // Find the running instances
+        DescribeInstancesResult response = ec2_all.describeInstances(request);
+
+        String publicDNS = null;
+
+        for (Reservation reservation : response.getReservations()){
+
+            for (Instance instance : reservation.getInstances()) {
+            	String instance_id = instance.getInstanceId();
+
+				final AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
+
+				DryRunSupportedRequest<StartInstancesRequest> dry_request =
+					() -> {
+					StartInstancesRequest isntance_request = new StartInstancesRequest()
+						.withInstanceIds(instance_id);
+
+					return isntance_request.getDryRunRequest();
+				};
+
+				StartInstancesRequest isntance_request = new StartInstancesRequest()
+					.withInstanceIds(instance_id);
+
+				ec2.startInstances(isntance_request);
+
+				System.out.printf("Successfully started instance %s\n", instance_id);
+            }
+        }
 	}
 
 	public static void stopAll(){
