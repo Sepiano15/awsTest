@@ -81,7 +81,8 @@ public class awsTest {
 			System.out.println("  3. start instance               4. available regions      ");
 			System.out.println("  5. stop instance                6. create instance        ");
 			System.out.println("  7. reboot instance              8. list images            ");
-			System.out.println("  9. show condor_status           99. quit                   ");
+			System.out.println("  9. show condor_status           10. stop all instance     ");
+			System.out.println("  99. quit                   ");
 			System.out.println("------------------------------------------------------------");
 			
 			System.out.print("Enter an integer: ");
@@ -152,7 +153,9 @@ public class awsTest {
 			case 9:
 				sshConnect();
 				break;
-
+			case 10:
+				stopAll();
+				break;
 			case 99: 
 				System.out.println("bye!");
 				menu.close();
@@ -399,6 +402,52 @@ public class awsTest {
 			System.out.println("Exception: "+e.toString());
 		}
 
+	}
+
+	public static void stopAll(){
+		AmazonEC2 ec2_all = AmazonEC2ClientBuilder.defaultClient();
+
+        //Create the Filter to use to find running instances
+        Filter filter = new Filter("instance-state-name");
+        filter.withValues("running");
+
+        //Create a DescribeInstancesRequest
+        DescribeInstancesRequest request = new DescribeInstancesRequest();
+        request.withFilters(filter);
+
+        // Find the running instances
+        DescribeInstancesResult response = ec2_all.describeInstances(request);
+
+        String publicDNS = null;
+
+        for (Reservation reservation : response.getReservations()){
+
+            for (Instance instance : reservation.getInstances()) {
+            	String instance_id = instance.getInstanceId();
+
+            	final AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
+
+				DryRunSupportedRequest<StopInstancesRequest> dry_request =
+					() -> {
+					StopInstancesRequest isntance_request = new StopInstancesRequest()
+						.withInstanceIds(instance_id);
+
+					return isntance_request.getDryRunRequest();
+				};
+
+				try {
+					StopInstancesRequest isntance_request = new StopInstancesRequest()
+						.withInstanceIds(instance_id);
+			
+					ec2.stopInstances(isntance_request);
+					System.out.printf("Successfully stop instance %s\n", instance_id);
+
+				} catch(Exception e)
+				{
+					System.out.println("Exception: "+e.toString());
+				}
+            }
+        }
 	}
 	
 	public static void createInstance(String ami_id) {
