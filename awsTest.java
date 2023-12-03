@@ -44,6 +44,7 @@ import java.io.ByteArrayOutputStream;
 public class awsTest {
 
 	static AmazonEC2      ec2;
+	private static String privateKey = "";
 
 	private static void init() throws Exception {
 
@@ -84,7 +85,7 @@ public class awsTest {
 			System.out.println("  7. reboot instance              8. list images            ");
 			System.out.println("  9. show condor_status           10. start all instance    ");
 			System.out.println("  11. stop all instance           12. start instance by name");
-			System.out.println("  13. stop instance by name       ");
+			System.out.println("  13. stop instance by name       14. send file to instance ");
 			System.out.println("  99. quit                   ");
 			System.out.println("------------------------------------------------------------");
 			
@@ -207,14 +208,17 @@ public class awsTest {
 		
 	}
 
-	public static void findDNS(String instance_name){
-
-	}
-
-	public static void sendFile(String file_name, String dest_instance_name){
+	public static void sendFile(String file_name, String instance_name){
 		String exe_name = file_name.substring(0, file_name.lastIndexOf("."));
+		String publicDNS = nameToDNS(instance_name);
+        String user = "ec2-user";
+        awsTest instance = new awsTest();
+		String privateKey = instance.privateKey;
+
  		// 실행할 명령어
-        String command = "ls -l";
+        String command = """
+            scp -i %s %s %s@%s:/home/%s/%s
+            """.formatted(privateKey, file_name, user, publicDNS, user, file_name);
 
         try {
             // ProcessBuilder를 사용하여 명령어 실행
@@ -281,8 +285,6 @@ public class awsTest {
             }
         }
 
-	  	//여기에 .pem 파일의 절대경로를 지정한다.
-	    String keyname = "";
 	    Channel channel = null;
 	    Session session = null;
 
@@ -302,7 +304,8 @@ public class awsTest {
 	            String user = "ec2-user";
 	            String host = publicDNS;
 	            int port = 22;
-	            String privateKey = keyname;
+	            awsTest instance = new awsTest();
+        		String privateKey = instance.privateKey;
 
 	            jsch.addIdentity(privateKey);
 
@@ -501,6 +504,43 @@ public class awsTest {
 			}
 		}
 		return instance_id;
+	}
+
+
+	public static String nameToDNS(String instance_name){
+		boolean done = false;
+		String publicDNS = null;
+		DescribeInstancesRequest request = new DescribeInstancesRequest();
+		
+		while(!done) {
+			DescribeInstancesResult response = ec2.describeInstances(request);
+
+			for(Reservation reservation : response.getReservations()) {
+				for(Instance instance : reservation.getInstances()) {
+					String search_name = null;
+					if (instance.getTags() != null) {
+			            Tag tagName = instance.getTags().stream()
+	                        .filter(o -> o.getKey().equals("Name"))
+	                        .findFirst()
+	                        .orElse(new Tag("Name", "name not found"));
+
+		                search_name = tagName.getValue();
+			        }
+
+			        if (instance_name.equals(search_name)){
+			        	publicDNS = instance.getPublicDnsName();
+			        	break;
+			        }
+				}
+			}
+
+			request.setNextToken(response.getNextToken());
+
+			if(response.getNextToken() == null) {
+				done = true;
+			}
+		}
+		return publicDNS;
 	}
 
 	public static void startInstance_name(String instance_name)
