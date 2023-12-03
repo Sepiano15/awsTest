@@ -168,9 +168,9 @@ public class awsTest {
     public static void sshConnect(){
 
   	//여기에 .pem 파일의 절대경로를 지정한다.
-    String keyname = "bckim_test.pem";
+    String keyname = "";
     //여기에 EC2 instance 도메인 주소를 적는다.
-    String publicDNS = "ec2-15-164-100-219.ap-northeast-2.compute.amazonaws.com";
+    String publicDNS = "";
     Channel channel = null;
     Session session = null;
 
