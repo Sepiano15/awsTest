@@ -248,22 +248,32 @@ public class awsTest {
 
         // Find the running instances
         DescribeInstancesResult response = ec2.describeInstances(request);
+        System.out.println("\n[Running Instance Information]");
+        System.out.println("------------------------------------------------------------\n");
 
         for (Reservation reservation : response.getReservations()){
 
             for (Instance instance : reservation.getInstances()) {
+            	String search_name = null;
+				if (instance.getTags() != null) {
+		            Tag tagName = instance.getTags().stream()
+                        .filter(o -> o.getKey().equals("Name"))
+                        .findFirst()
+                        .orElse(new Tag("Name", "name not found"));
+
+	                search_name = tagName.getValue();
+		        }
 
                 //Print out the results
-                System.out.println("\n[Running Instance Information]");
                 System.out.printf(
-                		"----------------------------------------------------\n" +
+                        "name %s, \n" +
                         "id %s, \n" +
                         "AMI %s, \n" +
                         "type %s, \n" +
                         "state %s \n" +
                         "monitoring state %s \n" +
-                        "DNS %s \n" + 
-                        "----------------------------------------------------\n",
+                        "DNS %s \n\n",
+                        search_name,
                         instance.getInstanceId(),
                         instance.getImageId(),
                         instance.getInstanceType(),
@@ -272,6 +282,8 @@ public class awsTest {
                 		instance.getPublicDnsName());
             }
         }
+        System.out.println("------------------------------------------------------------");
+
 	}
 
 	public static void getsshlink(String instance_name){
@@ -415,24 +427,6 @@ public class awsTest {
         for (Reservation reservation : response.getReservations()){
 
             for (Instance instance : reservation.getInstances()) {
-
-                //Print out the results
-                System.out.println("\n[Running Instance Information]");
-                System.out.printf(
-                		"----------------------------------------------------\n" +
-                        "id %s, \n" +
-                        "AMI %s, \n" +
-                        "type %s, \n" +
-                        "state %s \n" +
-                        "monitoring state %s \n" +
-                        "DNS %s \n" + 
-                        "----------------------------------------------------\n",
-                        instance.getInstanceId(),
-                        instance.getImageId(),
-                        instance.getInstanceType(),
-                        instance.getState().getName(),
-                        instance.getMonitoring().getState(),
-                		instance.getPublicDnsName());
                 publicDNS = instance.getPublicDnsName();
             }
         }
@@ -745,8 +739,6 @@ public class awsTest {
         // Find the running instances
         DescribeInstancesResult response = ec2_all.describeInstances(request);
 
-        String publicDNS = null;
-
         for (Reservation reservation : response.getReservations()){
 
             for (Instance instance : reservation.getInstances()) {
@@ -769,8 +761,6 @@ public class awsTest {
 
         // Find the running instances
         DescribeInstancesResult response = ec2_all.describeInstances(request);
-
-        String publicDNS = null;
 
         for (Reservation reservation : response.getReservations()){
 
