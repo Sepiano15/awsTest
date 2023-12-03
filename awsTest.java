@@ -34,7 +34,11 @@ import com.amazonaws.services.ec2.model.DescribeImagesRequest;
 import com.amazonaws.services.ec2.model.DescribeImagesResult;
 import com.amazonaws.services.ec2.model.Image;
 import com.amazonaws.services.ec2.model.Filter;
-
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import com.jcraft.jsch.*;
+import java.io.ByteArrayOutputStream;
 public class awsTest {
 
 	static AmazonEC2      ec2;
@@ -76,7 +80,7 @@ public class awsTest {
 			System.out.println("  3. start instance               4. available regions      ");
 			System.out.println("  5. stop instance                6. create instance        ");
 			System.out.println("  7. reboot instance              8. list images            ");
-			System.out.println("                                 99. quit                   ");
+			System.out.println("  9. show condor_status           99. quit                   ");
 			System.out.println("------------------------------------------------------------");
 			
 			System.out.print("Enter an integer: ");
@@ -144,6 +148,9 @@ public class awsTest {
 			case 8: 
 				listImages();
 				break;
+			case 9:
+				sshConnect();
+				break;
 
 			case 99: 
 				System.out.println("bye!");
@@ -156,6 +163,71 @@ public class awsTest {
 		}
 		
 	}
+
+
+    public static void sshConnect(){
+
+  	//여기에 .pem 파일의 절대경로를 지정한다.
+    String keyname = "bckim_test.pem";
+    //여기에 EC2 instance 도메인 주소를 적는다.
+    String publicDNS = "ec2-15-164-100-219.ap-northeast-2.compute.amazonaws.com";
+    Channel channel = null;
+    Session session = null;
+
+
+        try{
+            JSch jsch=new JSch();
+
+            String user = "ec2-user";
+            String host = publicDNS;
+            int port = 22;
+            String privateKey = keyname;
+
+            jsch.addIdentity(privateKey);
+            System.out.println("identity added ");
+
+            session = jsch.getSession(user, host, port);
+            System.out.println("session created.");
+
+            session.setConfig("StrictHostKeyChecking","no");
+            session.setConfig("GSSAPIAuthentication","no");
+            session.setServerAliveInterval(120 * 1000);
+            session.setServerAliveCountMax(1000);
+            session.setConfig("TCPKeepAlive","yes");
+
+            session.connect();
+
+            String responseString = "";
+            String command = "condor_status"; // 실행할 명령어
+			try {
+				ByteArrayOutputStream responseStream = new ByteArrayOutputStream();
+				
+				ChannelExec channelExec = (ChannelExec) session.openChannel("exec");
+				channelExec.setCommand(command);
+				channelExec.setOutputStream(responseStream);
+				channelExec.connect();
+		        while (channelExec.isConnected()) {
+		            Thread.sleep(100);
+		        }
+		        
+		        responseString = new String(responseStream.toByteArray());
+			} catch (JSchException e) {
+				e.printStackTrace();
+			}
+			System.out.println(responseString);
+        }
+        catch(Exception e){
+            e.printStackTrace();
+        } finally {
+        if (channel != null) {
+            channel.disconnect();
+        }
+        
+        if (session != null) {
+            session.disconnect();
+        }
+      }
+    }
 
 	public static void listInstances() {
 		
