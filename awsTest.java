@@ -86,7 +86,7 @@ public class awsTest {
 			System.out.println("  9. show condor_status           10. start all instance    ");
 			System.out.println("  11. stop all instance           12. start instance by name");
 			System.out.println("  13. stop instance by name       14. send file to instance ");
-			System.out.println("  99. quit                   ");
+			System.out.println("  15. run C program               99. quit                  ");
 			System.out.println("------------------------------------------------------------");
 			
 			System.out.print("Enter an integer: ");
@@ -195,7 +195,22 @@ public class awsTest {
 					if(!dest_instance_name.isBlank()) 
 					sendFile(file_name, dest_instance_name);
 				}
-				break;				
+				break;
+			case 15:
+				System.out.print("Enter file name: ");
+				if(id_string.hasNext())
+					file_name = id_string.nextLine();
+				
+				if(!file_name.isBlank()) {
+					System.out.print("Enter destination instance name: ");
+					if(id_string.hasNext())
+						dest_instance_name = id_string.nextLine();
+					
+					if(!dest_instance_name.isBlank()) 
+					sendFile(file_name, dest_instance_name);
+				}
+				runProgram(file_name, dest_instance_name);
+				break;	
 			case 99: 
 				System.out.println("bye!");
 				menu.close();
@@ -208,8 +223,79 @@ public class awsTest {
 		
 	}
 
-	public static void sendFile(String file_name, String instance_name){
+	public static void runProgram(String file_name, String instance_name){
 		String exe_name = file_name.substring(0, file_name.lastIndexOf("."));
+        String publicDNS = nameToDNS(instance_name);
+
+	    Channel channel = null;
+	    Session session = null;
+
+	    System.out.println("connect to " + publicDNS + "\n\n");
+
+
+        try{
+            JSch jsch=new JSch();
+
+            String user = "ec2-user";
+            String host = publicDNS;
+            int port = 22;
+            awsTest instance = new awsTest();
+    		String privateKey = instance.privateKey;
+
+            jsch.addIdentity(privateKey);
+
+            session = jsch.getSession(user, host, port);
+
+            session.setConfig("StrictHostKeyChecking","no");
+            session.setConfig("GSSAPIAuthentication","no");
+            session.setServerAliveInterval(120 * 1000);
+            session.setServerAliveCountMax(1000);
+            session.setConfig("TCPKeepAlive","yes");
+
+            session.connect();
+
+            String responseString = "";
+	        String[] commands = {"""
+	        	printf "executable    = %s\nuniverse    = vanilla\noutput    = out.txt\nerror    = error.txt\nlog    = log.txt\nqueue" > %s.jds
+	        	""".formatted(exe_name, exe_name), """
+	        	sudo gcc -o %s %s
+	        	""".formatted(exe_name, file_name), """
+	        	condor_submit %s.jds
+	        	""".formatted(exe_name)};
+
+	        for (String command : commands) {
+	            try {
+					ByteArrayOutputStream responseStream = new ByteArrayOutputStream();
+					
+					ChannelExec channelExec = (ChannelExec) session.openChannel("exec");
+					channelExec.setCommand(command);
+					channelExec.setOutputStream(responseStream);
+					channelExec.connect();
+			        while (channelExec.isConnected()) {
+			            Thread.sleep(100);
+			        }
+			        
+			        responseString = new String(responseStream.toByteArray());
+				} catch (JSchException e) {
+					e.printStackTrace();
+				}
+	        }
+			System.out.println("Complete!");
+        }
+        catch(Exception e){
+            e.printStackTrace();
+        } finally {
+	        if (channel != null) {
+	            channel.disconnect();
+	        }
+	        
+	        if (session != null) {
+	            session.disconnect();
+	        }
+		}
+	}
+
+	public static void sendFile(String file_name, String instance_name){
 		String publicDNS = nameToDNS(instance_name);
         String user = "ec2-user";
         awsTest instance = new awsTest();
